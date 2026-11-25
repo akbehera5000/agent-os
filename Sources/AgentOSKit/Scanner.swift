@@ -466,7 +466,11 @@ public struct Scanner: Sendable {
                     let url = cfg["url"] as? String ?? cfg["serverUrl"] as? String ?? cfg["httpUrl"] as? String
                     var command = cfg["command"] as? String ?? ""
                     if let arr = cfg["command"] as? [String] { command = arr.first ?? "" }
-                    let health: Connector.Health = url != nil ? .remote : (resolves(command) ? .ok : .missing)
+                    // Servers switched off in their config can't fail; they're shown as off, not broken.
+                    let off = (cfg["enabled"] as? Bool) == false || (cfg["disabled"] as? Bool) == true
+                    let configDir = URL(fileURLWithPath: file).deletingLastPathComponent()
+                    let health: Connector.Health = off ? .disabled : url != nil ? .remote
+                        : (resolves(command, near: [configDir.path, configDir.appending(path: name).path]) ? .ok : .missing)
                     out.append(Connector(name: name, tool: spec.id, transport: url != nil ? "http" : "stdio",
                                          command: url ?? command, health: health, configFile: file))
                 }
@@ -493,15 +497,22 @@ public struct Scanner: Sendable {
             let key = line[..<eq].trimmingCharacters(in: .whitespaces)
             let value = line[line.index(after: eq)...].trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "\""))
             if key == "command" || key == "url" { cfg[key] = value }
+            if key == "enabled" { cfg[key] = value == "true" }
         }
         flush()
         return out
     }
 
-    private func resolves(_ command: String) -> Bool {
+    /// True when a server's command can run. Relative paths ("./App.app/…") are looked up next to the tool's
+    /// config file and in its per-server folder, where tools like Codex keep bundled servers.
+    private func resolves(_ command: String, near bases: [String] = []) -> Bool {
         guard !command.isEmpty else { return false }
         let expanded = command.hasPrefix("~") ? home.path + command.dropFirst() : command
         if expanded.hasPrefix("/") { return FileManager.default.isExecutableFile(atPath: expanded) }
+        if expanded.contains("/") {
+            let rel = expanded.hasPrefix("./") ? String(expanded.dropFirst(2)) : expanded
+            return bases.contains { FileManager.default.isExecutableFile(atPath: "\($0)/\(rel)") }
+        }
         let dirs = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", path(".local/bin"), path(".bun/bin"), path(".cargo/bin")]
             + (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":").map(String.init)
         return dirs.contains { FileManager.default.isExecutableFile(atPath: "\($0)/\(expanded)") }

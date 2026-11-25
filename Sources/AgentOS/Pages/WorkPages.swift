@@ -417,7 +417,7 @@ private struct FlowTags: View {
                     Tag(text: ToolCatalog.name(c.tool), tint: HUD.high, state: c.health == .missing ? HUD.off : HUD.on.opacity(0.8))
                 }
                 .buttonStyle(.plain)
-                .help("\(c.health == .missing ? "Broken" : c.health == .remote ? "Remote" : "OK") · \(c.configFile)")
+                .help("\(c.health == .missing ? "Broken" : c.health == .disabled ? "Off in its config" : c.health == .remote ? "Remote" : "OK") · \(c.configFile)")
             }
         }
     }

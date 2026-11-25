@@ -116,7 +116,7 @@ public struct Connector: Sendable, Identifiable, Hashable {
     public var health: Health
     public var configFile: String
 
-    public enum Health: String, Sendable, Hashable { case ok, missing, remote }
+    public enum Health: String, Sendable, Hashable { case ok, missing, remote, disabled }
 }
 
 public struct Correction: Sendable, Identifiable, Hashable {

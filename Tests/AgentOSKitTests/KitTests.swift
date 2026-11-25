@@ -114,3 +114,25 @@ import simd
         #expect(g.nodes.allSatisfy { $0.pos.x.isFinite && $0.pos.y.isFinite && $0.pos.z.isFinite })
     }
 }
+
+@Test func disabledAndRelativeConnectorsAreNotBroken() throws {
+    let home = FileManager.default.temporaryDirectory.appending(path: "aos-mcp-\(UUID())")
+    let codex = home.appending(path: ".codex")
+    let bin = codex.appending(path: "rel/Tool.app/Contents/MacOS/run")
+    try FileManager.default.createDirectory(at: bin.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "#!/bin/sh".write(to: bin, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin.path)
+    try """
+    [mcp_servers.off]
+    command = "./Missing.app/run"
+    enabled = false
+    [mcp_servers.rel]
+    command = "./Tool.app/Contents/MacOS/run"
+    [mcp_servers.gone]
+    command = "./Nope.app/run"
+    """.write(to: codex.appending(path: "config.toml"), atomically: true, encoding: .utf8)
+    let health = Dictionary(uniqueKeysWithValues: Scanner(home: home).scanConnectors().map { ($0.name, $0.health) })
+    #expect(health["off"] == .disabled)
+    #expect(health["rel"] == .ok)
+    #expect(health["gone"] == .missing)
+}
